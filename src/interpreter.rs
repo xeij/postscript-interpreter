@@ -34,10 +34,32 @@ impl Interpreter {
                                 self.context.execution_stack.push(item.clone());
                             }
                         }
+                        PostScriptValue::Closure { body, env } => {
+                            // Execute closure
+                            // Save current env
+                            self.context.execution_stack.push(PostScriptValue::RestoreEnv(self.context.dict_stack.clone()));
+                            // Switch env
+                            self.context.dict_stack = env;
+                            // Push body
+                            for item in body.iter().rev() {
+                                self.context.execution_stack.push(item.clone());
+                            }
+                        }
                         _ => self.context.push(val),
                     }
                 } else {
                     return Err(format!("Undefined name: {}", name));
+                }
+            }
+            PostScriptValue::Block(block) => {
+                // Literal block. If lexical scoping, convert to Closure.
+                if self.context.lexical_scoping {
+                    self.context.push(PostScriptValue::Closure {
+                        body: block,
+                        env: self.context.dict_stack.clone(),
+                    });
+                } else {
+                    self.context.push(PostScriptValue::Block(block));
                 }
             }
             PostScriptValue::ForLoop { current, step, limit, proc } => {
@@ -61,6 +83,13 @@ impl Interpreter {
                                 self.context.execution_stack.push(item.clone());
                             }
                         }
+                        PostScriptValue::Closure { ref body, ref env } => {
+                            self.context.execution_stack.push(PostScriptValue::RestoreEnv(self.context.dict_stack.clone()));
+                            self.context.dict_stack = env.clone();
+                            for item in body.iter().rev() {
+                                self.context.execution_stack.push(item.clone());
+                            }
+                        }
                         _ => self.context.execution_stack.push(*proc),
                     }
                 }
@@ -80,11 +109,21 @@ impl Interpreter {
                                 self.context.execution_stack.push(item.clone());
                             }
                         }
+                        PostScriptValue::Closure { ref body, ref env } => {
+                            self.context.execution_stack.push(PostScriptValue::RestoreEnv(self.context.dict_stack.clone()));
+                            self.context.dict_stack = env.clone();
+                            for item in body.iter().rev() {
+                                self.context.execution_stack.push(item.clone());
+                            }
+                        }
                         _ => self.context.execution_stack.push(*proc),
                     }
                 }
             }
-            // Literal values (including Block/Procedure definitions) are pushed to operand stack
+            PostScriptValue::RestoreEnv(env) => {
+                self.context.dict_stack = env;
+            }
+            // Literal values are pushed to operand stack
             _ => {
                 self.context.push(value);
             }

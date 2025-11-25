@@ -289,6 +289,7 @@ fn length(ctx: &mut Context) -> Result<(), String> {
         PostScriptValue::String(s) => ctx.push(PostScriptValue::Int(s.len() as i64)),
         PostScriptValue::Array(arr) => ctx.push(PostScriptValue::Int(arr.len() as i64)),
         PostScriptValue::Block(arr) => ctx.push(PostScriptValue::Int(arr.len() as i64)),
+        PostScriptValue::Closure { body, .. } => ctx.push(PostScriptValue::Int(body.len() as i64)),
         _ => return Err("Type check error".to_string()),
     }
     Ok(())
@@ -376,9 +377,9 @@ fn getinterval(ctx: &mut Context) -> Result<(), String> {
 }
 
 fn putinterval(ctx: &mut Context) -> Result<(), String> {
-    let source = ctx.pop().ok_or("Stack underflow".to_string())?;
-    let index = ctx.pop().ok_or("Stack underflow".to_string())?;
-    let dest = ctx.pop().ok_or("Stack underflow".to_string())?;
+    let _source = ctx.pop().ok_or("Stack underflow".to_string())?;
+    let _index = ctx.pop().ok_or("Stack underflow".to_string())?;
+    let _dest = ctx.pop().ok_or("Stack underflow".to_string())?;
     
     // In Rust, strings are immutable, so we can't modify `dest` in place if it's shared.
     // But `PostScriptValue::String` owns the string.
@@ -475,7 +476,7 @@ fn lt(ctx: &mut Context) -> Result<(), String> {
     match (a, b) {
         (PostScriptValue::Int(i1), PostScriptValue::Int(i2)) => ctx.push(PostScriptValue::Bool(i1 < i2)),
         (PostScriptValue::Real(f1), PostScriptValue::Real(f2)) => ctx.push(PostScriptValue::Bool(f1 < f2)),
-        (PostScriptValue::Int(i1), PostScriptValue::Real(f2)) => ctx.push(PostScriptValue::Bool(i1 as f64 < f2)),
+        (PostScriptValue::Int(i1), PostScriptValue::Real(f2)) => ctx.push(PostScriptValue::Bool((i1 as f64) < f2)),
         (PostScriptValue::Real(f1), PostScriptValue::Int(i2)) => ctx.push(PostScriptValue::Bool(f1 < i2 as f64)),
         (PostScriptValue::String(s1), PostScriptValue::String(s2)) => ctx.push(PostScriptValue::Bool(s1 < s2)),
         _ => return Err("Type check error".to_string()),

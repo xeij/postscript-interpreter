@@ -1,0 +1,9 @@
+/x 10 def
+/proc { x } def
+/test {
+  1 dict begin
+  /x 20 def
+  proc
+  end
+} def
+test =

@@ -19,6 +19,9 @@ pub enum PostScriptValue {
     // Control flow states
     ForLoop { current: f64, step: f64, limit: f64, proc: Box<PostScriptValue> },
     RepeatLoop { count: i64, proc: Box<PostScriptValue> },
+    // Lexical scoping
+    Closure { body: Vec<PostScriptValue>, env: Vec<Rc<RefCell<HashMap<String, PostScriptValue>>>> },
+    RestoreEnv(Vec<Rc<RefCell<HashMap<String, PostScriptValue>>>>),
 }
 
 impl fmt::Display for PostScriptValue {
@@ -51,6 +54,8 @@ impl fmt::Display for PostScriptValue {
             }
             PostScriptValue::ForLoop { .. } => write!(f, "--for-loop--"),
             PostScriptValue::RepeatLoop { .. } => write!(f, "--repeat-loop--"),
+            PostScriptValue::Closure { .. } => write!(f, "--closure--"),
+            PostScriptValue::RestoreEnv(_) => write!(f, "--restore-env--"),
         }
     }
 }
