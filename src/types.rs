@@ -16,6 +16,9 @@ pub enum PostScriptValue {
     Mark,
     NativeFn(fn(&mut Context) -> Result<(), String>),
     Block(Vec<PostScriptValue>), // For executable arrays/procedures
+    // Control flow states
+    ForLoop { current: f64, step: f64, limit: f64, proc: Box<PostScriptValue> },
+    RepeatLoop { count: i64, proc: Box<PostScriptValue> },
 }
 
 impl fmt::Display for PostScriptValue {
@@ -46,6 +49,8 @@ impl fmt::Display for PostScriptValue {
                 }
                 write!(f, "}}")
             }
+            PostScriptValue::ForLoop { .. } => write!(f, "--for-loop--"),
+            PostScriptValue::RepeatLoop { .. } => write!(f, "--repeat-loop--"),
         }
     }
 }
@@ -87,15 +92,6 @@ impl Context {
     }
 
     pub fn lookup(&self, key: &str) -> Option<PostScriptValue> {
-        // Dynamic scoping: search from top of dict stack down
-        // Lexical scoping: This is tricky in a simple stack model without closures capturing env.
-        // For this assignment, "lexical scoping" might imply static binding, but standard PS is dynamic.
-        // If the user wants a toggle, we'll implement a simplified version or stick to the requirement interpretation.
-        // Requirement says: "Implement a flag or setting to switch to lexical (static) scoping."
-        // In a real lexical scope, we'd need to capture the environment where the procedure was defined.
-        // For now, I'll implement standard dynamic lookup here. 
-        // We might need to adjust `Block` to capture scope for lexical mode.
-        
         for dict in self.dict_stack.iter().rev() {
             if let Some(val) = dict.borrow().get(key) {
                 return Some(val.clone());
