@@ -69,7 +69,10 @@ cargo run -- scoping_test.ps
 # Lexical scoping
 cargo run -- --lexical scoping_test.ps
 ```
-### Stack Manipulation
+
+## Supported Commands (47/47) ✅
+
+### Stack Manipulation (6/6)
 - `exch` - Exchange top two stack items
 - `pop` - Remove top item from stack
 - `copy` - Copy top n items on stack
@@ -77,8 +80,7 @@ cargo run -- --lexical scoping_test.ps
 - `clear` - Clear entire operand stack
 - `count` - Count items on stack
 
-## Supported Commands (47/47) ✅
-### Arithmetic Operations
+### Arithmetic Operations (12/12)
 - `add` - Addition (supports int and real)
 - `sub` - Subtraction
 - `mul` - Multiplication
@@ -106,7 +108,7 @@ cargo run -- --lexical scoping_test.ps
 - `getinterval` - Extract substring
 - `putinterval` - Replace part of string (in-place mutation)
 
-### Boolean and Bitwise Operations
+### Boolean and Bitwise Operations (11/11)
 - `eq` - Test equality
 - `ne` - Test inequality
 - `ge` - Greater than or equal
@@ -119,14 +121,14 @@ cargo run -- --lexical scoping_test.ps
 - `true` - Boolean constant
 - `false` - Boolean constant
 
-### Flow Control
+### Flow Control (5/5)
 - `if` - Conditional execution
 - `ifelse` - Conditional branching
 - `for` - Loop with start, step, and limit
 - `repeat` - Repeat procedure n times
 - `quit` - Terminate interpreter
 
-### Input/Output
+### Input/Output (3/3)
 - `print` - Print string to stdout
 - `=` - Print text representation of value
 - `==` - Print PostScript representation of value
