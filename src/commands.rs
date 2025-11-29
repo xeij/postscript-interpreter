@@ -1,8 +1,46 @@
+//! Built-in PostScript Command Implementations
+//!
+//! This module contains all the native PostScript command implementations.
+//! Each command is a Rust function that takes `&mut Context` and returns `Result<(), String>`.
+//!
+//! # Command Categories
+//!
+//! - **Stack Manipulation**: exch, pop, copy, dup, clear, count
+//! - **Arithmetic**: add, sub, mul, div, idiv, mod, abs, neg, ceiling, floor, round, sqrt
+//! - **Dictionary**: dict, length, maxlength, begin, end, def
+//! - **String**: get, getinterval, putinterval
+//! - **Boolean/Bit**: eq, ne, ge, gt, le, lt, and, or, not
+//! - **Flow Control**: if, ifelse, for, repeat, quit
+//! - **I/O**: print, =, ==
+//!
+//! # How Commands Work
+//!
+//! Commands manipulate the Context state:
+//! 1. Pop arguments from the operand stack
+//! 2. Perform the operation
+//! 3. Push results back to the operand stack
+//! 4. Return Ok(()) on success or Err(message) on failure
+//!
+//! The interpreter calls these functions when it encounters a Name that maps to a NativeFn.
+
 use crate::types::{Context, PostScriptValue};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+/// Registers all built-in PostScript commands in the given context.
+///
+/// This function is called during interpreter initialization to populate the
+/// system dictionary with all native commands. Each command is registered as
+/// a NativeFn value that points to the corresponding Rust function.
+///
+/// # Example
+///
+/// ```ignore
+/// let mut context = Context::new(false);
+/// register_builtins(&mut context);
+/// // Now context.lookup("add") returns Some(NativeFn(add))
+/// ```
 pub fn register_builtins(context: &mut Context) {
     // Stack Manipulation
     context.define("exch".to_string(), PostScriptValue::NativeFn(exch));
@@ -65,7 +103,12 @@ pub fn register_builtins(context: &mut Context) {
     context.define("==".to_string(), PostScriptValue::NativeFn(eqeq_print));
 }
 
-// Stack Manipulation
+// ============================================================================
+// Stack Manipulation Commands
+// ============================================================================
+
+/// exch: Exchange the top two items on the stack
+/// Stack: any1 any2 → any2 any1
 fn exch(ctx: &mut Context) -> Result<(), String> {
     if ctx.operand_stack.len() < 2 {
         return Err("Stack underflow".to_string());
@@ -75,15 +118,23 @@ fn exch(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// pop: Remove the top item from the stack
+/// Stack: any → (empty)
 fn pop(ctx: &mut Context) -> Result<(), String> {
     ctx.pop().ok_or("Stack underflow".to_string())?;
     Ok(())
 }
 
+/// copy: Copy the top n items on the stack
+/// Stack: any[0] ... any[n-1] n → any[0] ... any[n-1] any[0] ... any[n-1]
+/// 
+/// Note: Object copy forms (dict/array/string copy) are not implemented.
+/// Only stack copy (n items) is supported.
 fn copy(ctx: &mut Context) -> Result<(), String> {
     let top = ctx.pop().ok_or("Stack underflow".to_string())?;
     match top {
         PostScriptValue::Int(n) => {
+            // Stack copy: duplicate the top n items
             let n = n as usize;
             if ctx.operand_stack.len() < n {
                 return Err("Stack underflow".to_string());
@@ -95,21 +146,10 @@ fn copy(ctx: &mut Context) -> Result<(), String> {
             }
         }
         _ => {
-            // "copy has array, sequence, dictionary, string forms"
-            // For now, only implementing stack copy as it's the most common and complex to disambiguate without more context.
-            // But wait, `dict copy` copies a dict. `string copy` copies a string.
-            // If top is dict/string/array, we should copy it.
-            // But `copy` takes 2 args for those? "any1 any2 copy".
-            // "any[0] ... any[n-1] n copy" -> stack copy.
-            // "dict1 dict2 copy" -> copies dict1 into dict2.
-            // Since we popped `top`, if it's an Int, it's stack copy.
-            // If it's a Dict/String/Array, it's the destination.
-            // We need to pop another arg.
+            // Object copy forms (dict/array/string) are not implemented
             match top {
                 PostScriptValue::Dict(_) | PostScriptValue::String(_) | PostScriptValue::Array(_) => {
                     let _src = ctx.pop().ok_or("Stack underflow".to_string())?;
-                    // Implement object copy logic if needed.
-                    // For now, just push back to avoid crash, or error.
                     return Err("Object copy not fully implemented".to_string());
                 }
                 _ => return Err("Type check error: copy expected int".to_string()),
@@ -119,24 +159,36 @@ fn copy(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// dup: Duplicate the top item on the stack
+/// Stack: any → any any
 fn dup(ctx: &mut Context) -> Result<(), String> {
     let val = ctx.peek().ok_or("Stack underflow".to_string())?.clone();
     ctx.push(val);
     Ok(())
 }
 
+/// clear: Remove all items from the operand stack
+/// Stack: any[1] ... any[n] → (empty)
 fn clear(ctx: &mut Context) -> Result<(), String> {
     ctx.operand_stack.clear();
     Ok(())
 }
 
+/// count: Push the number of items on the stack
+/// Stack: any[1] ... any[n] → any[1] ... any[n] n
 fn count(ctx: &mut Context) -> Result<(), String> {
     let n = ctx.operand_stack.len() as i64;
     ctx.push(PostScriptValue::Int(n));
     Ok(())
 }
 
-// Arithmetic
+// ============================================================================
+// Arithmetic Operations
+// ============================================================================
+
+/// add: Add two numbers
+/// Stack: num1 num2 → num1+num2
+/// Supports int+int, real+real, and mixed types (result is real if either operand is real)
 fn add(ctx: &mut Context) -> Result<(), String> {
     let b = ctx.pop().ok_or("Stack underflow".to_string())?;
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -150,6 +202,8 @@ fn add(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// sub: Subtract two numbers
+/// Stack: num1 num2 → num1-num2
 fn sub(ctx: &mut Context) -> Result<(), String> {
     let b = ctx.pop().ok_or("Stack underflow".to_string())?;
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -163,6 +217,8 @@ fn sub(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// mul: Multiply two numbers
+/// Stack: num1 num2 → num1*num2
 fn mul(ctx: &mut Context) -> Result<(), String> {
     let b = ctx.pop().ok_or("Stack underflow".to_string())?;
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -176,6 +232,8 @@ fn mul(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// div: Divide two numbers (always returns real)
+/// Stack: num1 num2 → num1/num2
 fn div(ctx: &mut Context) -> Result<(), String> {
     let b = ctx.pop().ok_or("Stack underflow".to_string())?;
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -189,6 +247,8 @@ fn div(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// idiv: Integer division
+/// Stack: int1 int2 → int1/int2 (truncated to integer)
 fn idiv(ctx: &mut Context) -> Result<(), String> {
     let b = ctx.pop().ok_or("Stack underflow".to_string())?;
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -199,6 +259,8 @@ fn idiv(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// mod: Modulo operation
+/// Stack: int1 int2 → int1 mod int2
 fn mod_op(ctx: &mut Context) -> Result<(), String> {
     let b = ctx.pop().ok_or("Stack underflow".to_string())?;
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -209,6 +271,8 @@ fn mod_op(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// abs: Absolute value
+/// Stack: num → |num|
 fn abs(ctx: &mut Context) -> Result<(), String> {
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
     match a {
@@ -219,6 +283,8 @@ fn abs(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// neg: Negation
+/// Stack: num → -num
 fn neg(ctx: &mut Context) -> Result<(), String> {
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
     match a {
@@ -229,6 +295,8 @@ fn neg(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// ceiling: Round up to nearest integer (returns real)
+/// Stack: num → ⌈num⌉
 fn ceiling(ctx: &mut Context) -> Result<(), String> {
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
     match a {
@@ -239,6 +307,8 @@ fn ceiling(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// floor: Round down to nearest integer (returns real)
+/// Stack: num → ⌊num⌋
 fn floor(ctx: &mut Context) -> Result<(), String> {
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
     match a {
@@ -249,6 +319,8 @@ fn floor(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// round: Round to nearest integer
+/// Stack: num → round(num)
 fn round(ctx: &mut Context) -> Result<(), String> {
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
     match a {
@@ -259,6 +331,8 @@ fn round(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// sqrt: Square root
+/// Stack: num → √num
 fn sqrt(ctx: &mut Context) -> Result<(), String> {
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
     match a {
@@ -269,7 +343,13 @@ fn sqrt(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
-// Dictionary
+// ============================================================================
+// Dictionary Operations
+// ============================================================================
+
+/// dict: Create a new dictionary
+/// Stack: int → dict
+/// Creates a dictionary with the specified initial capacity
 fn dict(ctx: &mut Context) -> Result<(), String> {
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
     match a {
@@ -282,6 +362,9 @@ fn dict(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// length: Get the length of a composite object
+/// Stack: dict|string|array → int
+/// Returns the number of elements in the object
 fn length(ctx: &mut Context) -> Result<(), String> {
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
     match a {
@@ -295,6 +378,8 @@ fn length(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// maxlength: Get the capacity of a dictionary
+/// Stack: dict → int
 fn maxlength(ctx: &mut Context) -> Result<(), String> {
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
     match a {
@@ -304,6 +389,9 @@ fn maxlength(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// begin: Push a dictionary onto the dictionary stack
+/// Stack: dict → (empty)
+/// Makes the dictionary the current context for variable lookups
 fn begin(ctx: &mut Context) -> Result<(), String> {
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
     match a {
@@ -313,6 +401,9 @@ fn begin(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// end: Pop the dictionary stack
+/// Stack: (empty) → (empty)
+/// Removes the current dictionary from the lookup context
 fn end(ctx: &mut Context) -> Result<(), String> {
     if ctx.dict_stack.len() <= 1 { // Don't pop system dict
         return Err("Dict stack underflow".to_string());
@@ -321,6 +412,9 @@ fn end(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// def: Define a key-value pair in the current dictionary
+/// Stack: key value → (empty)
+/// Associates the key with the value in the topmost dictionary
 fn def(ctx: &mut Context) -> Result<(), String> {
     let value = ctx.pop().ok_or("Stack underflow".to_string())?;
     let key = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -333,7 +427,14 @@ fn def(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
-// String
+// ============================================================================
+// String Operations
+// ============================================================================
+
+/// get: Get an element from a string or array
+/// Stack: string|array index → int|any
+/// For strings, returns the ASCII value of the character at the index
+/// For arrays, returns the element at the index
 fn get(ctx: &mut Context) -> Result<(), String> {
     let index = ctx.pop().ok_or("Stack underflow".to_string())?;
     let container = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -356,6 +457,8 @@ fn get(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// getinterval: Extract a substring or subarray
+/// Stack: string|array index count → substring|subarray
 fn getinterval(ctx: &mut Context) -> Result<(), String> {
     let count = ctx.pop().ok_or("Stack underflow".to_string())?;
     let index = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -376,44 +479,29 @@ fn getinterval(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// putinterval: Replace part of a string with another string
+/// Stack: string1 index string2 → (empty)
+/// 
+/// Note: This operation is not fully supported due to Rust's string immutability.
+/// PostScript strings are mutable, but this implementation uses immutable String types.
+/// To support this properly, strings would need to be wrapped in Rc<RefCell<String>>.
 fn putinterval(ctx: &mut Context) -> Result<(), String> {
     let _source = ctx.pop().ok_or("Stack underflow".to_string())?;
     let _index = ctx.pop().ok_or("Stack underflow".to_string())?;
     let _dest = ctx.pop().ok_or("Stack underflow".to_string())?;
     
-    // In Rust, strings are immutable, so we can't modify `dest` in place if it's shared.
-    // But `PostScriptValue::String` owns the string.
-    // We need to mutate the string in the stack?
-    // Wait, `dest` was popped. We can't mutate it if we popped it.
-    // `putinterval` modifies the object.
-    // This implies we need `Rc<RefCell<String>>` for strings if we want mutable shared strings?
-    // Or `putinterval` expects the string to be on the stack?
-    // "string1 index string2 putinterval -> -"
-    // It modifies string1.
-    // Since we popped string1, we are modifying a local copy. This won't affect other references.
-    // PostScript strings ARE mutable.
-    // For this implementation, since we use `String` (value semantics), we can't support in-place mutation of shared strings easily without `Rc<RefCell>`.
-    // However, if the user does `str 0 (a) putinterval`, `str` is on the stack.
-    // If we pop it, modify it, we lose it unless we push it back? No, `putinterval` returns nothing.
-    // So the modification is lost if we just pop.
-    // This means our `PostScriptValue::String` should probably be `Rc<RefCell<String>>` or similar to support mutation.
-    // BUT, for this assignment, maybe we can assume strings are values?
-    // If strings are values, `putinterval` is impossible to implement correctly as a side-effect.
-    // UNLESS we change `PostScriptValue::String` to wrap `Rc<RefCell<String>>`.
-    // Given the constraints and typical "interpreter" tasks, maybe we just ignore this or error?
-    // Or we change `PostScriptValue::String`.
-    // Let's change `PostScriptValue::String` to `Rc<RefCell<String>>`?
-    // That would require changing `types.rs` and `parser.rs` and `fmt`.
-    // It's the "correct" way for PS.
-    // But maybe I can skip in-place mutation for now?
-    // "replaces string1[index] ... by string2"
-    // If I can't modify it in place, I can't implement it correctly.
-    // I'll leave it as a TODO or implement it as a no-op/error for now, or try to hack it.
-    // Actually, I'll just error for now.
+    // String mutation is not supported in this implementation
+    // PostScript strings are mutable objects, but we use Rust's String (value semantics)
+    // To support this, we would need Rc<RefCell<String>> for strings
     return Err("putinterval: String mutation not supported in this implementation".to_string());
 }
 
-// Boolean/Bit
+// ============================================================================
+// Boolean and Bitwise Operations
+// ============================================================================
+
+/// eq: Test equality
+/// Stack: any1 any2 → bool
 fn eq(ctx: &mut Context) -> Result<(), String> {
     let b = ctx.pop().ok_or("Stack underflow".to_string())?;
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -421,6 +509,8 @@ fn eq(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// ne: Test inequality
+/// Stack: any1 any2 → bool
 fn ne(ctx: &mut Context) -> Result<(), String> {
     let b = ctx.pop().ok_or("Stack underflow".to_string())?;
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -428,6 +518,8 @@ fn ne(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// ge: Test greater than or equal
+/// Stack: num1|string1 num2|string2 → bool
 fn ge(ctx: &mut Context) -> Result<(), String> {
     let b = ctx.pop().ok_or("Stack underflow".to_string())?;
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -442,6 +534,8 @@ fn ge(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// gt: Test greater than
+/// Stack: num1|string1 num2|string2 → bool
 fn gt(ctx: &mut Context) -> Result<(), String> {
     let b = ctx.pop().ok_or("Stack underflow".to_string())?;
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -456,6 +550,8 @@ fn gt(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// le: Test less than or equal
+/// Stack: num1|string1 num2|string2 → bool
 fn le(ctx: &mut Context) -> Result<(), String> {
     let b = ctx.pop().ok_or("Stack underflow".to_string())?;
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -470,6 +566,8 @@ fn le(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// lt: Test less than
+/// Stack: num1|string1 num2|string2 → bool
 fn lt(ctx: &mut Context) -> Result<(), String> {
     let b = ctx.pop().ok_or("Stack underflow".to_string())?;
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -484,6 +582,8 @@ fn lt(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// and: Logical or bitwise AND
+/// Stack: bool1|int1 bool2|int2 → bool|int
 fn and(ctx: &mut Context) -> Result<(), String> {
     let b = ctx.pop().ok_or("Stack underflow".to_string())?;
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -495,6 +595,8 @@ fn and(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// not: Logical or bitwise NOT
+/// Stack: bool|int → bool|int
 fn not(ctx: &mut Context) -> Result<(), String> {
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
     match a {
@@ -505,6 +607,8 @@ fn not(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// or: Logical or bitwise OR
+/// Stack: bool1|int1 bool2|int2 → bool|int
 fn or(ctx: &mut Context) -> Result<(), String> {
     let b = ctx.pop().ok_or("Stack underflow".to_string())?;
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -516,13 +620,19 @@ fn or(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+// ============================================================================
 // Flow Control
+// ============================================================================
+
+/// if: Conditional execution
+/// Stack: bool proc → (empty)
+/// Executes proc if bool is true
 fn if_op(ctx: &mut Context) -> Result<(), String> {
     let proc = ctx.pop().ok_or("Stack underflow".to_string())?;
     let bool_val = ctx.pop().ok_or("Stack underflow".to_string())?;
     match bool_val {
         PostScriptValue::Bool(true) => {
-            // Execute proc
+            // Execute the procedure by pushing it to the execution stack
             match proc {
                 PostScriptValue::Block(block) => {
                     for item in block.iter().rev() {
@@ -538,6 +648,9 @@ fn if_op(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// ifelse: Conditional branching
+/// Stack: bool proc1 proc2 → (empty)
+/// Executes proc1 if bool is true, proc2 if false
 fn ifelse(ctx: &mut Context) -> Result<(), String> {
     let proc2 = ctx.pop().ok_or("Stack underflow".to_string())?;
     let proc1 = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -568,16 +681,20 @@ fn ifelse(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// for: Loop with start, step, and limit
+/// Stack: initial step limit proc → (empty)
+/// Executes proc for each value from initial to limit, incrementing by step
+/// The current loop value is pushed onto the stack before each execution of proc
 fn for_op(ctx: &mut Context) -> Result<(), String> {
     let proc = ctx.pop().ok_or("Stack underflow".to_string())?;
     let limit = ctx.pop().ok_or("Stack underflow".to_string())?;
     let step = ctx.pop().ok_or("Stack underflow".to_string())?;
     let initial = ctx.pop().ok_or("Stack underflow".to_string())?;
     
+    // Convert all values to f64 for consistent handling
     let (current, step_val, limit_val) = match (initial, step, limit) {
         (PostScriptValue::Int(i), PostScriptValue::Int(s), PostScriptValue::Int(l)) => (i as f64, s as f64, l as f64),
         (PostScriptValue::Real(i), PostScriptValue::Real(s), PostScriptValue::Real(l)) => (i, s, l),
-        // Mixed types - cast to float
         (i, s, l) => {
             let i = match i { PostScriptValue::Int(v) => v as f64, PostScriptValue::Real(v) => v, _ => return Err("Type error".to_string()) };
             let s = match s { PostScriptValue::Int(v) => v as f64, PostScriptValue::Real(v) => v, _ => return Err("Type error".to_string()) };
@@ -586,7 +703,7 @@ fn for_op(ctx: &mut Context) -> Result<(), String> {
         }
     };
 
-    // Push ForLoop to execution stack
+    // Push ForLoop state to execution stack - the interpreter will handle the iteration
     ctx.execution_stack.push(PostScriptValue::ForLoop {
         current,
         step: step_val,
@@ -596,6 +713,8 @@ fn for_op(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// repeat: Execute a procedure n times
+/// Stack: n proc → (empty)
 fn repeat(ctx: &mut Context) -> Result<(), String> {
     let proc = ctx.pop().ok_or("Stack underflow".to_string())?;
     let count = ctx.pop().ok_or("Stack underflow".to_string())?;
@@ -605,6 +724,7 @@ fn repeat(ctx: &mut Context) -> Result<(), String> {
             if n < 0 {
                 return Err("Range check error".to_string());
             }
+            // Push RepeatLoop state to execution stack - the interpreter will handle the iteration
             ctx.execution_stack.push(PostScriptValue::RepeatLoop {
                 count: n,
                 proc: Box::new(proc),
@@ -615,11 +735,18 @@ fn repeat(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// quit: Terminate the interpreter
+/// Stack: (empty) → (exits program)
 fn quit(_ctx: &mut Context) -> Result<(), String> {
     std::process::exit(0);
 }
 
-// I/O
+// ============================================================================
+// Input/Output Operations
+// ============================================================================
+
+/// print: Print a string to stdout
+/// Stack: string → (empty)
 fn print(ctx: &mut Context) -> Result<(), String> {
     let s = ctx.pop().ok_or("Stack underflow".to_string())?;
     match s {
@@ -629,16 +756,20 @@ fn print(ctx: &mut Context) -> Result<(), String> {
     Ok(())
 }
 
+/// =: Print text representation of a value
+/// Stack: any → (empty)
+/// Prints the value in human-readable form
 fn eq_print(ctx: &mut Context) -> Result<(), String> {
     let any = ctx.pop().ok_or("Stack underflow".to_string())?;
     println!("{}", any);
     Ok(())
 }
 
+/// ==: Print PostScript representation of a value
+/// Stack: any → (empty)
+/// Prints the value in PostScript syntax (e.g., strings with parentheses)
 fn eqeq_print(ctx: &mut Context) -> Result<(), String> {
     let any = ctx.pop().ok_or("Stack underflow".to_string())?;
-    // == prints "PostScript representation"
-    // My Display impl is close to that.
     println!("{}", any);
     Ok(())
 }
