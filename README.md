@@ -4,7 +4,7 @@ A PostScript interpreter implemented in Rust, supporting a comprehensive subset 
 
 ## Overview
 
-This interpreter implements **all 47 PostScript commands** from the specification (100% coverage), providing robust support for:
+This interpreter implements robust support for:
 - Stack-based operations
 - Arithmetic and mathematical functions
 - Dictionary management
