@@ -1,0 +1,295 @@
+% Comprehensive PostScript Command Test
+% This file tests all commands from the specification
+
+(=== STACK MANIPULATION TESTS ===) print
+
+% Test exch
+(Testing exch: ) print
+1 2 exch = =
+% Expected: 1 then 2
+
+% Test pop
+(Testing pop: ) print
+1 2 3 pop = =
+% Expected: 2 then 1
+
+% Test dup
+(Testing dup: ) print
+5 dup = =
+% Expected: 5 then 5
+
+% Test copy
+(Testing copy: ) print
+1 2 3 3 copy count =
+% Expected: 6 (stack has 1 2 3 1 2 3)
+
+% Test clear and count
+(Testing count before clear: ) print
+1 2 3 4 5 count =
+% Expected: 5
+(Testing clear: ) print
+clear count =
+% Expected: 0
+
+(=== ARITHMETIC TESTS ===) print
+
+% Test add
+(Testing add: ) print
+3 4 add =
+% Expected: 7
+
+(Testing add with reals: ) print
+3.5 2.5 add =
+% Expected: 6.0
+
+% Test sub
+(Testing sub: ) print
+10 3 sub =
+% Expected: 7
+
+% Test mul
+(Testing mul: ) print
+6 7 mul =
+% Expected: 42
+
+% Test div
+(Testing div: ) print
+10 4 div =
+% Expected: 2.5
+
+% Test idiv
+(Testing idiv: ) print
+10 3 idiv =
+% Expected: 3
+
+% Test mod
+(Testing mod: ) print
+10 3 mod =
+% Expected: 1
+
+% Test abs
+(Testing abs positive: ) print
+5 abs =
+% Expected: 5
+
+(Testing abs negative: ) print
+-5 abs =
+% Expected: 5
+
+% Test neg
+(Testing neg: ) print
+5 neg =
+% Expected: -5
+
+% Test ceiling
+(Testing ceiling: ) print
+3.2 ceiling =
+% Expected: 4.0
+
+(Testing ceiling negative: ) print
+-4.8 ceiling =
+% Expected: -4.0
+
+% Test floor
+(Testing floor: ) print
+3.8 floor =
+% Expected: 3.0
+
+(Testing floor negative: ) print
+-4.2 floor =
+% Expected: -5.0
+
+% Test round
+(Testing round: ) print
+3.6 round =
+% Expected: 4.0
+
+(Testing round down: ) print
+3.2 round =
+% Expected: 3.0
+
+% Test sqrt
+(Testing sqrt: ) print
+16 sqrt =
+% Expected: 4.0
+
+(Testing sqrt of 2: ) print
+2 sqrt =
+% Expected: 1.414...
+
+(=== DICTIONARY TESTS ===) print
+
+% Test dict creation
+(Testing dict: ) print
+10 dict length =
+% Expected: 0
+
+% Test begin/end
+(Testing dict begin/end: ) print
+10 dict begin
+/x 42 def
+/y 100 def
+end
+(dict operations completed) print
+% Expected: "dict operations completed"
+
+(=== STRING TESTS ===) print
+
+% Test string length
+(Testing string length: ) print
+(hello) length =
+% Expected: 5
+
+% Test string get
+(Testing string get: ) print
+(hello) 1 get =
+% Expected: 101 (ASCII for 'e')
+
+% Test getinterval
+(Testing getinterval: ) print
+(hello world) 0 5 getinterval =
+% Expected: (hello)
+
+(Testing getinterval middle: ) print
+(hello world) 6 5 getinterval =
+% Expected: (world)
+
+(=== BOOLEAN TESTS ===) print
+
+% Test eq
+(Testing eq true: ) print
+5 5 eq =
+% Expected: true
+
+(Testing eq false: ) print
+5 6 eq =
+% Expected: false
+
+% Test ne
+(Testing ne: ) print
+5 6 ne =
+% Expected: true
+
+% Test gt
+(Testing gt true: ) print
+10 5 gt =
+% Expected: true
+
+(Testing gt false: ) print
+5 10 gt =
+% Expected: false
+
+% Test ge
+(Testing ge equal: ) print
+5 5 ge =
+% Expected: true
+
+(Testing ge greater: ) print
+10 5 ge =
+% Expected: true
+
+% Test lt
+(Testing lt: ) print
+5 10 lt =
+% Expected: true
+
+% Test le
+(Testing le: ) print
+5 5 le =
+% Expected: true
+
+% Test and (boolean)
+(Testing and boolean: ) print
+true true and =
+% Expected: true
+
+(Testing and boolean false: ) print
+true false and =
+% Expected: false
+
+% Test and (bitwise)
+(Testing and bitwise: ) print
+12 10 and =
+% Expected: 8 (1100 & 1010 = 1000)
+
+% Test or (boolean)
+(Testing or boolean: ) print
+true false or =
+% Expected: true
+
+% Test or (bitwise)
+(Testing or bitwise: ) print
+12 10 or =
+% Expected: 14 (1100 | 1010 = 1110)
+
+% Test not (boolean)
+(Testing not boolean: ) print
+true not =
+% Expected: false
+
+% Test not (bitwise)
+(Testing not bitwise: ) print
+0 not =
+% Expected: -1
+
+% Test true/false
+(Testing true: ) print
+true =
+% Expected: true
+
+(Testing false: ) print
+false =
+% Expected: false
+
+(=== FLOW CONTROL TESTS ===) print
+
+% Test if
+(Testing if true: ) print
+true { (if executed) print } if
+% Expected: "if executed"
+
+(Testing if false: ) print
+false { (should not print) print } if
+(if false completed) print
+% Expected: "if false completed"
+
+% Test ifelse
+(Testing ifelse true: ) print
+true { (true branch) = } { (false branch) = } ifelse
+% Expected: (true branch)
+
+(Testing ifelse false: ) print
+false { (true branch) = } { (false branch) = } ifelse
+% Expected: (false branch)
+
+% Test for loop
+(Testing for loop: ) print
+1 1 5 { = } for
+% Expected: 1 2 3 4 5 (each on new line)
+
+% Test repeat
+(Testing repeat: ) print
+3 { (repeat) print } repeat
+% Expected: "repeatrepeatrepeat"
+
+(=== INPUT/OUTPUT TESTS ===) print
+
+% Test print
+(Testing print: ) print
+(Hello, World!) print
+
+% Test =
+(Testing =: ) print
+42 =
+% Expected: 42
+
+(Testing = with string: ) print
+(test string) =
+% Expected: test string
+
+% Test ==
+(Testing ==: ) print
+(test) ==
+% Expected: (test)
+
+(=== ALL TESTS COMPLETE ===) print
