@@ -1,0 +1,43 @@
+% Test string mutation with putinterval
+
+% Test 1: Basic putinterval
+(=== Test 1: Basic putinterval ===) print
+(hello world) dup 
+(Before: ) print dup =
+0 (HELLO) putinterval
+(After: ) print =
+
+% Test 2: Mutation affects all references
+(=== Test 2: Shared reference mutation ===) print
+(original text) dup dup
+% Stack now has: str str str
+(First copy before: ) print dup =
+(Second copy before: ) print dup =
+% Mutate via the bottom reference (need to get it to top)
+exch exch  % Now stack is: str(top) str str
+0 (MODIFIED!!) putinterval
+% Stack now has: str str (the two remaining copies)
+(After mutation - First copy: ) print dup =
+(After mutation - Second copy: ) print =
+
+% Test 3: putinterval in middle of string
+(=== Test 3: Middle insertion ===) print
+(hello world) dup
+(Before: ) print dup =
+6 (RUST) putinterval
+(After: ) print =
+
+% Test 4: getinterval
+(=== Test 4: getinterval ===) print
+(hello world) 0 5 getinterval =
+
+% Test 5: String length
+(=== Test 5: String length ===) print
+(test string) length =
+
+% Test 6: String get (character access)
+(=== Test 6: String get (ASCII values) ===) print
+(ABC) 0 get =
+(ABC) 1 get =
+(ABC) 2 get =
+

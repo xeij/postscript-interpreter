@@ -4,7 +4,7 @@ A PostScript interpreter implemented in Rust, supporting a comprehensive subset 
 
 ## Overview
 
-This interpreter implements **46 out of 47** PostScript commands from the specification (98% coverage), providing robust support for:
+This interpreter implements **all 47 PostScript commands** from the specification (100% coverage), providing robust support for:
 - Stack-based operations
 - Arithmetic and mathematical functions
 - Dictionary management
@@ -21,8 +21,6 @@ Rust was chosen for this implementation due to its unique combination of:
 - **Strong type system** with pattern matching
 - **Excellent error handling** with the `Result` type
 - **Modern tooling** (Cargo, Clippy, Rustfmt)
-
-See [`rust-language-choice.md`](rust-language-choice.md) or [`rust-language-choice.txt`](rust-language-choice.txt) for a detailed explanation.
 
 ## Building and Running
 
@@ -71,10 +69,7 @@ cargo run -- scoping_test.ps
 # Lexical scoping
 cargo run -- --lexical scoping_test.ps
 ```
-
-## Supported Commands (46/47)
-
-### Stack Manipulation (6/6)
+### Stack Manipulation
 - `exch` - Exchange top two stack items
 - `pop` - Remove top item from stack
 - `copy` - Copy top n items on stack
@@ -82,7 +77,8 @@ cargo run -- --lexical scoping_test.ps
 - `clear` - Clear entire operand stack
 - `count` - Count items on stack
 
-### Arithmetic Operations (12/12)
+## Supported Commands (47/47) ✅
+### Arithmetic Operations
 - `add` - Addition (supports int and real)
 - `sub` - Subtraction
 - `mul` - Multiplication
@@ -96,7 +92,7 @@ cargo run -- --lexical scoping_test.ps
 - `round` - Round to nearest integer
 - `sqrt` - Square root
 
-### Dictionary Operations (6/6)
+### Dictionary Operations
 - `dict` - Create dictionary with specified capacity
 - `length` - Get number of key-value pairs
 - `maxlength` - Get dictionary capacity
@@ -104,13 +100,13 @@ cargo run -- --lexical scoping_test.ps
 - `end` - Pop dictionary stack
 - `def` - Define key-value pair in current dictionary
 
-### String Operations (3/4)
+### String Operations (4/4)
 - `length` - Get string length
 - `get` - Get character at index (returns ASCII value)
 - `getinterval` - Extract substring
-- `putinterval` - ⚠️ Limited support (see Known Limitations)
+- `putinterval` - Replace part of string (in-place mutation)
 
-### Boolean and Bitwise Operations (11/11)
+### Boolean and Bitwise Operations
 - `eq` - Test equality
 - `ne` - Test inequality
 - `ge` - Greater than or equal
@@ -123,14 +119,14 @@ cargo run -- --lexical scoping_test.ps
 - `true` - Boolean constant
 - `false` - Boolean constant
 
-### Flow Control (5/5)
+### Flow Control
 - `if` - Conditional execution
 - `ifelse` - Conditional branching
 - `for` - Loop with start, step, and limit
 - `repeat` - Repeat procedure n times
 - `quit` - Terminate interpreter
 
-### Input/Output (3/3)
+### Input/Output
 - `print` - Print string to stdout
 - `=` - Print text representation of value
 - `==` - Print PostScript representation of value
@@ -151,21 +147,32 @@ cargo run -- --lexical scoping_test.ps
 
 # Comprehensive command verification
 cargo run -- comprehensive_test.ps
+
+# String mutation tests
+cargo run -- string_mutation_test.ps
 ```
 
 ### Verification
 
 A comprehensive test suite (`comprehensive_test.ps`) verifies all implemented commands. See the verification report for detailed test results and coverage analysis.
 
-## Known Limitations
+## Implementation Details
 
-### `putinterval` - String Mutation
+### String Mutation
 
-The `putinterval` command has limited support due to Rust's string immutability model. PostScript strings are mutable objects, but this implementation uses Rust's `String` type which has value semantics.
+Strings in this interpreter use `Rc<RefCell<String>>` to support mutable shared references, matching PostScript's string semantics. This means:
 
-**Impact:** Minimal - most PostScript programs don't rely on in-place string mutation.
+- Strings can be modified in place with `putinterval`
+- Multiple references to the same string share the underlying data
+- Mutations are visible through all references
 
-**Workaround:** To fully support this feature, strings would need to be wrapped in `Rc<RefCell<String>>`.
+**Example:**
+```postscript
+(hello world) dup        % Create two references to same string
+0 (HELLO) putinterval    % Modify via first reference
+=                         % Both show: (HELLO world)
+=
+```
 
 ## Project Structure
 
@@ -237,27 +244,3 @@ Built with Rust's zero-cost abstractions and LLVM optimization, the interpreter 
 - Native code execution speed
 - Minimal memory overhead
 - Predictable performance without garbage collection pauses
-
-## Contributing
-
-This is an educational project demonstrating interpreter implementation in Rust. The codebase showcases:
-- Rust's ownership system for memory safety
-- Pattern matching for type handling
-- Error propagation with `Result` types
-- Stack-based execution model
-
-## License
-
-See LICENSE file for details.
-
-## Documentation
-
-- [`rust-language-choice.md`](rust-language-choice.md) - Detailed explanation of why Rust was chosen
-- [`rust-language-choice.txt`](rust-language-choice.txt) - Plain text version
-- Verification report available in project artifacts
-
-## Version
-
-**Current Version:** 0.1.0  
-**Implementation Status:** 46/47 commands (98%)  
-**Last Updated:** November 28, 2025

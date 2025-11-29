@@ -369,7 +369,7 @@ fn length(ctx: &mut Context) -> Result<(), String> {
     let a = ctx.pop().ok_or("Stack underflow".to_string())?;
     match a {
         PostScriptValue::Dict(d) => ctx.push(PostScriptValue::Int(d.borrow().len() as i64)),
-        PostScriptValue::String(s) => ctx.push(PostScriptValue::Int(s.len() as i64)),
+        PostScriptValue::String(s) => ctx.push(PostScriptValue::Int(s.borrow().len() as i64)),
         PostScriptValue::Array(arr) => ctx.push(PostScriptValue::Int(arr.len() as i64)),
         PostScriptValue::Block(arr) => ctx.push(PostScriptValue::Int(arr.len() as i64)),
         PostScriptValue::Closure { body, .. } => ctx.push(PostScriptValue::Int(body.len() as i64)),
@@ -440,10 +440,11 @@ fn get(ctx: &mut Context) -> Result<(), String> {
     let container = ctx.pop().ok_or("Stack underflow".to_string())?;
     match (container, index) {
         (PostScriptValue::String(s), PostScriptValue::Int(i)) => {
-            if i < 0 || i as usize >= s.len() {
+            let s_borrowed = s.borrow();
+            if i < 0 || i as usize >= s_borrowed.len() {
                 return Err("Range check error".to_string());
             }
-            let c = s.chars().nth(i as usize).unwrap();
+            let c = s_borrowed.chars().nth(i as usize).unwrap();
             ctx.push(PostScriptValue::Int(c as i64));
         }
         (PostScriptValue::Array(arr), PostScriptValue::Int(i)) => {
@@ -468,11 +469,12 @@ fn getinterval(ctx: &mut Context) -> Result<(), String> {
         (PostScriptValue::String(s), PostScriptValue::Int(i), PostScriptValue::Int(c)) => {
             let i = i as usize;
             let c = c as usize;
-            if i + c > s.len() {
+            let s_borrowed = s.borrow();
+            if i + c > s_borrowed.len() {
                 return Err("Range check error".to_string());
             }
-            let sub = s[i..i+c].to_string();
-            ctx.push(PostScriptValue::String(sub));
+            let sub = s_borrowed[i..i+c].to_string();
+            ctx.push(PostScriptValue::String(Rc::new(RefCell::new(sub))));
         }
         _ => return Err("Type check error".to_string()),
     }
@@ -482,18 +484,38 @@ fn getinterval(ctx: &mut Context) -> Result<(), String> {
 /// putinterval: Replace part of a string with another string
 /// Stack: string1 index string2 → (empty)
 /// 
-/// Note: This operation is not fully supported due to Rust's string immutability.
-/// PostScript strings are mutable, but this implementation uses immutable String types.
-/// To support this properly, strings would need to be wrapped in Rc<RefCell<String>>.
+/// Modifies string1 in place by replacing characters starting at index with string2.
+/// This works because strings are now wrapped in Rc<RefCell<String>>.
 fn putinterval(ctx: &mut Context) -> Result<(), String> {
-    let _source = ctx.pop().ok_or("Stack underflow".to_string())?;
-    let _index = ctx.pop().ok_or("Stack underflow".to_string())?;
-    let _dest = ctx.pop().ok_or("Stack underflow".to_string())?;
+    let source = ctx.pop().ok_or("Stack underflow".to_string())?;
+    let index = ctx.pop().ok_or("Stack underflow".to_string())?;
+    let dest = ctx.pop().ok_or("Stack underflow".to_string())?;
     
-    // String mutation is not supported in this implementation
-    // PostScript strings are mutable objects, but we use Rust's String (value semantics)
-    // To support this, we would need Rc<RefCell<String>> for strings
-    return Err("putinterval: String mutation not supported in this implementation".to_string());
+    match (dest, index, source) {
+        (PostScriptValue::String(dest_str), PostScriptValue::Int(idx), PostScriptValue::String(src_str)) => {
+            let idx = idx as usize;
+            let src_borrowed = src_str.borrow();
+            let mut dest_borrowed = dest_str.borrow_mut();
+            
+            // Check bounds
+            if idx + src_borrowed.len() > dest_borrowed.len() {
+                return Err("Range check error".to_string());
+            }
+            
+            // Replace characters in dest starting at idx with characters from src
+            // We need to work with byte indices for string slicing
+            let mut dest_chars: Vec<char> = dest_borrowed.chars().collect();
+            let src_chars: Vec<char> = src_borrowed.chars().collect();
+            
+            for (i, &ch) in src_chars.iter().enumerate() {
+                dest_chars[idx + i] = ch;
+            }
+            
+            *dest_borrowed = dest_chars.into_iter().collect();
+            Ok(())
+        }
+        _ => Err("Type check error: putinterval expected string index string".to_string()),
+    }
 }
 
 // ============================================================================
@@ -528,7 +550,7 @@ fn ge(ctx: &mut Context) -> Result<(), String> {
         (PostScriptValue::Real(f1), PostScriptValue::Real(f2)) => ctx.push(PostScriptValue::Bool(f1 >= f2)),
         (PostScriptValue::Int(i1), PostScriptValue::Real(f2)) => ctx.push(PostScriptValue::Bool(i1 as f64 >= f2)),
         (PostScriptValue::Real(f1), PostScriptValue::Int(i2)) => ctx.push(PostScriptValue::Bool(f1 >= i2 as f64)),
-        (PostScriptValue::String(s1), PostScriptValue::String(s2)) => ctx.push(PostScriptValue::Bool(s1 >= s2)),
+        (PostScriptValue::String(s1), PostScriptValue::String(s2)) => ctx.push(PostScriptValue::Bool(*s1.borrow() >= *s2.borrow())),
         _ => return Err("Type check error".to_string()),
     }
     Ok(())
@@ -544,7 +566,7 @@ fn gt(ctx: &mut Context) -> Result<(), String> {
         (PostScriptValue::Real(f1), PostScriptValue::Real(f2)) => ctx.push(PostScriptValue::Bool(f1 > f2)),
         (PostScriptValue::Int(i1), PostScriptValue::Real(f2)) => ctx.push(PostScriptValue::Bool(i1 as f64 > f2)),
         (PostScriptValue::Real(f1), PostScriptValue::Int(i2)) => ctx.push(PostScriptValue::Bool(f1 > i2 as f64)),
-        (PostScriptValue::String(s1), PostScriptValue::String(s2)) => ctx.push(PostScriptValue::Bool(s1 > s2)),
+        (PostScriptValue::String(s1), PostScriptValue::String(s2)) => ctx.push(PostScriptValue::Bool(*s1.borrow() > *s2.borrow())),
         _ => return Err("Type check error".to_string()),
     }
     Ok(())
@@ -560,7 +582,7 @@ fn le(ctx: &mut Context) -> Result<(), String> {
         (PostScriptValue::Real(f1), PostScriptValue::Real(f2)) => ctx.push(PostScriptValue::Bool(f1 <= f2)),
         (PostScriptValue::Int(i1), PostScriptValue::Real(f2)) => ctx.push(PostScriptValue::Bool(i1 as f64 <= f2)),
         (PostScriptValue::Real(f1), PostScriptValue::Int(i2)) => ctx.push(PostScriptValue::Bool(f1 <= i2 as f64)),
-        (PostScriptValue::String(s1), PostScriptValue::String(s2)) => ctx.push(PostScriptValue::Bool(s1 <= s2)),
+        (PostScriptValue::String(s1), PostScriptValue::String(s2)) => ctx.push(PostScriptValue::Bool(*s1.borrow() <= *s2.borrow())),
         _ => return Err("Type check error".to_string()),
     }
     Ok(())
@@ -576,7 +598,7 @@ fn lt(ctx: &mut Context) -> Result<(), String> {
         (PostScriptValue::Real(f1), PostScriptValue::Real(f2)) => ctx.push(PostScriptValue::Bool(f1 < f2)),
         (PostScriptValue::Int(i1), PostScriptValue::Real(f2)) => ctx.push(PostScriptValue::Bool((i1 as f64) < f2)),
         (PostScriptValue::Real(f1), PostScriptValue::Int(i2)) => ctx.push(PostScriptValue::Bool(f1 < i2 as f64)),
-        (PostScriptValue::String(s1), PostScriptValue::String(s2)) => ctx.push(PostScriptValue::Bool(s1 < s2)),
+        (PostScriptValue::String(s1), PostScriptValue::String(s2)) => ctx.push(PostScriptValue::Bool(*s1.borrow() < *s2.borrow())),
         _ => return Err("Type check error".to_string()),
     }
     Ok(())
@@ -750,7 +772,7 @@ fn quit(_ctx: &mut Context) -> Result<(), String> {
 fn print(ctx: &mut Context) -> Result<(), String> {
     let s = ctx.pop().ok_or("Stack underflow".to_string())?;
     match s {
-        PostScriptValue::String(s) => print!("{}", s),
+        PostScriptValue::String(s) => print!("{}", s.borrow()),
         _ => return Err("Type check error".to_string()),
     }
     Ok(())

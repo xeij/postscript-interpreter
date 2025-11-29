@@ -28,7 +28,8 @@ pub enum PostScriptValue {
     Bool(bool),
     
     /// String literal (e.g., (hello world))
-    String(String),
+    /// Wrapped in Rc<RefCell<>> to support mutation (required for putinterval)
+    String(Rc<RefCell<String>>),
     
     /// Executable name - a name that will be looked up and executed (e.g., add, sub, myfunction)
     Name(String),
@@ -83,7 +84,7 @@ impl fmt::Display for PostScriptValue {
             PostScriptValue::Int(i) => write!(f, "{}", i),
             PostScriptValue::Real(r) => write!(f, "{}", r),
             PostScriptValue::Bool(b) => write!(f, "{}", b),
-            PostScriptValue::String(s) => write!(f, "({})", s),
+            PostScriptValue::String(s) => write!(f, "({})", s.borrow()),
             PostScriptValue::Name(n) => write!(f, "{}", n),
             PostScriptValue::LiteralName(n) => write!(f, "/{}", n),
             PostScriptValue::Array(arr) => {

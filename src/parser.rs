@@ -6,6 +6,8 @@
 //! 2. Parsing: Converts tokens into PostScriptValue objects
 
 use crate::types::PostScriptValue;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 
 /// Represents a lexical token in PostScript source code.
@@ -309,7 +311,7 @@ fn parse_sequence(iter: &mut std::vec::IntoIter<Token>, terminator: Option<Token
         match token {
             Token::Int(i) => sequence.push(PostScriptValue::Int(i)),
             Token::Real(f) => sequence.push(PostScriptValue::Real(f)),
-            Token::String(s) => sequence.push(PostScriptValue::String(s)),
+            Token::String(s) => sequence.push(PostScriptValue::String(Rc::new(RefCell::new(s)))),
             Token::Name(n) => sequence.push(PostScriptValue::Name(n)),
             Token::LiteralName(n) => sequence.push(PostScriptValue::LiteralName(n)),
             Token::LBracket => {
